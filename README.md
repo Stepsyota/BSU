@@ -9,6 +9,7 @@
 ├── LabX/
 │ └── LabX.ipynb
 ├── .gitignore
+├── LICENSE
 ├── README.md
 ├── requirements.txt
 └── titanic_train.csv

@@ -25,6 +25,7 @@ Click on a badge to open each subproject folder:
 [![Computer Networks](https://img.shields.io/badge/Networks-Folder-green?style=for-the-badge)](https://github.com/Stepsyota/BSU/tree/main/Computer_networks)
 [![Numerical Methods](https://img.shields.io/badge/Numerical%20Methods-Folder-red?style=for-the-badge)](https://github.com/Stepsyota/BSU/tree/main/NumericalMethods)
 [![Assembly](https://img.shields.io/badge/Assembly-Folder-lightgrey?style=for-the-badge)](https://github.com/Stepsyota/BSU/tree/main/Computer_architecture)
+
 ---
 
 ## Cloning Specific Subprojects

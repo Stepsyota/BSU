@@ -4,6 +4,9 @@
 
 #include <QMainWindow>
 
+class QKeyEvent;
+
+class BuildingView;
 class QCheckBox;
 class QComboBox;
 class QLabel;
@@ -19,11 +22,17 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr);
 
+protected:
+    void keyPressEvent(QKeyEvent* event) override;
+    void changeEvent(QEvent* event) override;
+
 private:
+    enum class SpawnStep { Idle, Origin, Destination };
+
     void buildUi();
     void connectSignals();
     void refresh();
-    void syncControls();
+    void syncControls(const sim::SessionSnapshot& shot);
     void onStart();
     void onPause();
     void onStop();
@@ -38,6 +47,12 @@ private:
     void showStats();
     void exportReport();
     void applyStrategyFromCombo();
+    bool handleSpawnKeys(QKeyEvent* event);
+    void enterSpawnMode();
+    void exitSpawnMode();
+    void bumpSpawnFloor(int delta);
+    void updateSpawnUi();
+    int floorCount() const;
 
     sim::Simulation simulation_;
     QTimer* timer_ = nullptr;
@@ -52,6 +67,10 @@ private:
     QSpinBox* originSpin_ = nullptr;
     QSpinBox* destSpin_ = nullptr;
     QPushButton* spawnButton_ = nullptr;
+    QLabel* spawnHint_ = nullptr;
+    BuildingView* buildingView_ = nullptr;
     QTableWidget* elevatorTable_ = nullptr;
     QTableWidget* peopleTable_ = nullptr;
+
+    SpawnStep spawnStep_ = SpawnStep::Idle;
 };

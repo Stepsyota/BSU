@@ -17,5 +17,6 @@ constexpr double kDefaultMaxSpeed = 2.0;
 constexpr double kDefaultMaxAccel = 1.0;
 constexpr int kDefaultFloorCount = 10;
 constexpr int kDefaultElevatorCount = 3;
+constexpr int kMaxLivingPeople = 80;
 
 }  // namespace sim

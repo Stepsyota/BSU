@@ -1,5 +1,8 @@
+# Сборка в терминале: `make`. CLion тоже может звать cmake — см. CMakeLists.txt.
+# .NOTPARALLEL: Qt-заголовки раздувают RSS; CLion часто запускает -j по числу ядер.
+
 CXX      := g++
-CXXFLAGS := -std=c++20 -Wall -Wextra -O2 -fPIC
+CXXFLAGS := -std=c++20 -Wall -Wextra -O0 -g -fPIC
 INCLUDES := -I src/domain/include -I src/io/include -I src/ui/include
 
 QT_CFLAGS := $(shell pkg-config --cflags Qt6Widgets)
@@ -24,7 +27,8 @@ IO_SRCS := src/io/src/JsonStore.cpp
 UI_SRCS := \
 	src/ui/src/MainWindow.cpp \
 	src/ui/src/ConfigDialog.cpp \
-	src/ui/src/StatsDialog.cpp
+	src/ui/src/StatsDialog.cpp \
+	src/ui/src/BuildingView.cpp
 
 APP_SRCS := main.cpp
 
@@ -41,12 +45,13 @@ OBJS     := $(CPP_OBJS) $(MOC_OBJS)
 
 .PHONY: all clean run help
 .SECONDARY: $(MOC_SRCS)
+.NOTPARALLEL:
 
 all: $(TARGET)
 
 help:
 	@echo "Цели:"
-	@echo "  make / make all  — собрать $(TARGET)"
+	@echo "  make / make all  — собрать $(TARGET) (последовательно, чтобы не съесть ОЗУ)"
 	@echo "  make run         — собрать и запустить"
 	@echo "  make clean       — удалить каталог $(BUILD)"
 	@echo "  make help        — показать эту справку"

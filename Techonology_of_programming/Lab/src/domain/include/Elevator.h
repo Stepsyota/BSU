@@ -28,6 +28,7 @@ public:
     int passengerCount() const { return static_cast<int>(passengerIds_.size()); }
 
     int currentFloor() const;
+    int targetFloor() const;
     bool isEmpty() const { return passengerIds_.empty(); }
     bool isStopped() const;
     bool hasFreeSpace() const { return passengerCount() < spec_.capacity; }

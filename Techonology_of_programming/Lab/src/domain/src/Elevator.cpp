@@ -25,6 +25,14 @@ int Elevator::currentFloor() const
     return static_cast<int>(std::lround(positionM_ / floorHeight_)) + 1;
 }
 
+int Elevator::targetFloor() const
+{
+    if (state_ == ElevatorState::FireRecall) {
+        return 1;
+    }
+    return nextStop(state_ == ElevatorState::Moving);
+}
+
 bool Elevator::isStopped() const
 {
     return std::abs(velocity_) < kArriveVelEps

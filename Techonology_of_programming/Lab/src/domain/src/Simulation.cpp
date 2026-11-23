@@ -160,6 +160,9 @@ void Simulation::setScenario(Scenario scenario)
 
 int Simulation::spawnPerson(int originFloor, int destinationFloor)
 {
+    if (static_cast<int>(people_.size()) >= kMaxLivingPeople) {
+        return -1;
+    }
     if (originFloor < 1 || originFloor > config_.floorCount) {
         return -1;
     }
@@ -249,6 +252,7 @@ SessionSnapshot Simulation::snapshot() const
     shot.strategyName = strategy_ ? strategy_->name() : std::string{};
     shot.speedFactor = speedFactor_;
     shot.floorCount = config_.floorCount;
+    shot.floorHeight = config_.floorHeight;
 
     int transported = 0;
     shot.elevators.reserve(elevators_.size());
@@ -258,11 +262,13 @@ SessionSnapshot Simulation::snapshot() const
         ElevatorRow row;
         row.id = elevator.id();
         row.floor = elevator.currentFloor();
+        row.positionM = elevator.positionM();
         row.velocity = elevator.velocity();
         row.state = elevator.state();
         row.doorsOpen = elevator.doorsOpen();
         row.passengers = elevator.passengerCount();
         row.capacity = elevator.capacity();
+        row.nextStop = elevator.targetFloor();
         row.stops = formatStops(elevator.stops());
         row.trips = stats.trips;
         row.idlePercent = stats.idleTripPercent;
@@ -274,6 +280,7 @@ SessionSnapshot Simulation::snapshot() const
     for (const auto& person : people_) {
         PersonRow row;
         row.id = person.id();
+        row.status = person.status();
         row.statusText = person.statusText();
         row.origin = person.originFloor();
         row.destination = person.destinationFloor();
@@ -331,8 +338,10 @@ void Simulation::applyScenario(double now)
     for (const auto& event : scenario_.dueEvents(now)) {
         switch (event.type) {
         case ScenarioEventType::SpawnPeople:
-            for (int i = 0; i < event.count; ++i) {
-                spawnPerson(event.fromFloor, event.toFloor);
+            for (int i = 0; i < event.count && i < kMaxLivingPeople; ++i) {
+                if (spawnPerson(event.fromFloor, event.toFloor) < 0) {
+                    break;
+                }
             }
             break;
         case ScenarioEventType::FireOn:

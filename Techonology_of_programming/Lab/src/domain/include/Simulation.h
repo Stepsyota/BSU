@@ -18,11 +18,13 @@ namespace sim {
 struct ElevatorRow {
     int id = 0;
     int floor = 1;
+    double positionM = 0.0;
     double velocity = 0.0;
     ElevatorState state = ElevatorState::Idle;
     bool doorsOpen = false;
     int passengers = 0;
     int capacity = 0;
+    int nextStop = 0;
     std::string stops;
     int trips = 0;
     double idlePercent = 0.0;
@@ -30,6 +32,7 @@ struct ElevatorRow {
 
 struct PersonRow {
     int id = 0;
+    PersonStatus status = PersonStatus::Created;
     std::string statusText;
     int origin = 1;
     int destination = 0;
@@ -46,6 +49,7 @@ struct SessionSnapshot {
     std::string strategyName;
     double speedFactor = 1.0;
     int floorCount = 10;
+    double floorHeight = 3.0;
     std::vector<ElevatorRow> elevators;
     std::vector<PersonRow> people;
 };
@@ -77,6 +81,7 @@ public:
 
     int spawnPerson(int originFloor, int destinationFloor = 0);
     bool submitDestination(int personId, int destFloor);
+    int personCount() const { return static_cast<int>(people_.size()); }
 
     void tick(double realDt);
 

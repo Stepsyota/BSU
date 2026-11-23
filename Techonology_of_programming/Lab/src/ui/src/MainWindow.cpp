@@ -4,19 +4,23 @@
 #include "MinIdleStrategy.h"
 #include "MinWaitStrategy.h"
 #include "JsonStore.h"
+#include "BuildingView.h"
 #include "ConfigDialog.h"
 #include "StatsDialog.h"
 
 #include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QEvent>
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMenuBar>
+#include <QShortcut>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSlider>
@@ -27,6 +31,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
@@ -70,9 +75,18 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
     setWindowTitle(QStringLiteral("Лифты — лабораторная 8"));
-    resize(1100, 720);
+    resize(1280, 780);
     buildUi();
     connectSignals();
+    auto* tabShortcut = new QShortcut(Qt::Key_Tab, this);
+    tabShortcut->setContext(Qt::WindowShortcut);
+    connect(tabShortcut, &QShortcut::activated, this, [this]() {
+        if (spawnStep_ == SpawnStep::Idle) {
+            enterSpawnMode();
+        } else {
+            exitSpawnMode();
+        }
+    });
     refresh();
 }
 
@@ -98,6 +112,9 @@ void MainWindow::buildUi()
     startButton_ = new QPushButton(QStringLiteral("Старт"), controls);
     pauseButton_ = new QPushButton(QStringLiteral("Пауза"), controls);
     stopButton_ = new QPushButton(QStringLiteral("Стоп"), controls);
+    startButton_->setAutoDefault(false);
+    pauseButton_->setAutoDefault(false);
+    stopButton_->setAutoDefault(false);
     buttons->addWidget(startButton_);
     buttons->addWidget(pauseButton_);
     buttons->addWidget(stopButton_);
@@ -128,9 +145,14 @@ void MainWindow::buildUi()
     originSpin_->setValue(1);
     destSpin_->setValue(2);
     spawnButton_ = new QPushButton(QStringLiteral("Создать"), spawnBox);
+    spawnButton_->setAutoDefault(false);
+    spawnButton_->setDefault(false);
+    spawnHint_ = new QLabel(QStringLiteral("Tab — добавить с клавиатуры"), spawnBox);
+    spawnHint_->setWordWrap(true);
     spawnForm->addRow(QStringLiteral("Откуда"), originSpin_);
     spawnForm->addRow(QStringLiteral("Куда"), destSpin_);
     spawnForm->addRow(spawnButton_);
+    spawnForm->addRow(spawnHint_);
     controlsLayout->addWidget(spawnBox);
     controlsLayout->addStretch();
 
@@ -151,16 +173,22 @@ void MainWindow::buildUi()
     peopleTable_->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     peopleTable_->verticalHeader()->setVisible(false);
 
-    auto* splitter = new QSplitter(Qt::Vertical, this);
-    auto* top = new QSplitter(Qt::Horizontal, splitter);
-    top->addWidget(controls);
-    top->addWidget(elevatorTable_);
-    top->setStretchFactor(0, 0);
-    top->setStretchFactor(1, 1);
-    splitter->addWidget(top);
-    splitter->addWidget(peopleTable_);
-    splitter->setStretchFactor(0, 1);
-    splitter->setStretchFactor(1, 1);
+    buildingView_ = new BuildingView(this);
+
+    auto* tables = new QSplitter(Qt::Vertical, this);
+    tables->addWidget(elevatorTable_);
+    tables->addWidget(peopleTable_);
+    tables->setStretchFactor(0, 1);
+    tables->setStretchFactor(1, 1);
+
+    auto* splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->addWidget(controls);
+    splitter->addWidget(buildingView_);
+    splitter->addWidget(tables);
+    splitter->setStretchFactor(0, 0);
+    splitter->setStretchFactor(1, 2);
+    splitter->setStretchFactor(2, 1);
+    splitter->setSizes({240, 520, 420});
     setCentralWidget(splitter);
 
     statusBar()->showMessage(QStringLiteral("Время: 0 с | Перевезено: 0"));
@@ -211,12 +239,13 @@ void MainWindow::refresh()
     statusBar()->showMessage(QStringLiteral("Время: %1 с | Перевезено: %2")
                                  .arg(QString::number(shot.timeSeconds, 'f', 1))
                                  .arg(shot.transported));
-    syncControls();
+    buildingView_->setSnapshot(shot);
+    updateSpawnUi();
+    syncControls(shot);
 }
 
-void MainWindow::syncControls()
+void MainWindow::syncControls(const sim::SessionSnapshot& shot)
 {
-    const auto shot = simulation_.snapshot();
     const bool stopped = shot.state == sim::SessionState::Stopped;
     const bool running = shot.state == sim::SessionState::Running;
     startButton_->setEnabled(stopped);
@@ -271,7 +300,9 @@ void MainWindow::onSpawn()
     const int origin = originSpin_->value();
     const int dest = destSpin_->value();
     if (simulation_.spawnPerson(origin, dest) < 0) {
-        QMessageBox::warning(this, QStringLiteral("Пассажир"), QStringLiteral("Не удалось создать человека."));
+        statusBar()->showMessage(
+            QStringLiteral("Не удалось создать пассажира (лимит %1 или этажи совпадают)").arg(sim::kMaxLivingPeople),
+            3000);
         return;
     }
     refresh();
@@ -402,4 +433,131 @@ void MainWindow::applyStrategyFromCombo()
     } else {
         simulation_.setStrategy(std::make_unique<sim::MinWaitStrategy>());
     }
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* event)
+{
+    if (handleSpawnKeys(event)) {
+        event->accept();
+        return;
+    }
+    QMainWindow::keyPressEvent(event);
+}
+
+void MainWindow::changeEvent(QEvent* event)
+{
+    QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::ActivationChange && !isActiveWindow() && spawnStep_ != SpawnStep::Idle) {
+        exitSpawnMode();
+    }
+}
+
+bool MainWindow::handleSpawnKeys(QKeyEvent* event)
+{
+    const int key = event->key();
+    if (key == Qt::Key_Tab) {
+        if (event->isAutoRepeat()) {
+            return true;
+        }
+        if (spawnStep_ == SpawnStep::Idle) {
+            enterSpawnMode();
+        } else {
+            exitSpawnMode();
+        }
+        return true;
+    }
+    if (key == Qt::Key_Escape && spawnStep_ != SpawnStep::Idle) {
+        exitSpawnMode();
+        return true;
+    }
+    if (spawnStep_ == SpawnStep::Idle) {
+        return false;
+    }
+
+    switch (key) {
+    case Qt::Key_W:
+    case Qt::Key_Up:
+        bumpSpawnFloor(1);
+        return true;
+    case Qt::Key_S:
+    case Qt::Key_Down:
+        bumpSpawnFloor(-1);
+        return true;
+    case Qt::Key_A:
+    case Qt::Key_Left:
+        spawnStep_ = SpawnStep::Origin;
+        updateSpawnUi();
+        return true;
+    case Qt::Key_D:
+    case Qt::Key_Right:
+        spawnStep_ = SpawnStep::Destination;
+        updateSpawnUi();
+        return true;
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+        if (event->isAutoRepeat()) {
+            return true;
+        }
+        if (spawnStep_ == SpawnStep::Origin) {
+            spawnStep_ = SpawnStep::Destination;
+            if (destSpin_->value() == originSpin_->value()) {
+                destSpin_->setValue(std::min(originSpin_->value() + 1, floorCount()));
+                if (destSpin_->value() == originSpin_->value()) {
+                    destSpin_->setValue(std::max(1, originSpin_->value() - 1));
+                }
+            }
+            updateSpawnUi();
+            return true;
+        }
+        onSpawn();
+        spawnStep_ = SpawnStep::Origin;
+        updateSpawnUi();
+        return true;
+    default:
+        return false;
+    }
+}
+
+void MainWindow::enterSpawnMode()
+{
+    spawnStep_ = SpawnStep::Origin;
+    grabKeyboard();
+    updateSpawnUi();
+}
+
+void MainWindow::exitSpawnMode()
+{
+    spawnStep_ = SpawnStep::Idle;
+    releaseKeyboard();
+    updateSpawnUi();
+}
+
+void MainWindow::bumpSpawnFloor(int delta)
+{
+    QSpinBox* spin = spawnStep_ == SpawnStep::Destination ? destSpin_ : originSpin_;
+    spin->setValue(std::clamp(spin->value() + delta, 1, floorCount()));
+    updateSpawnUi();
+}
+
+void MainWindow::updateSpawnUi()
+{
+    const bool active = spawnStep_ != SpawnStep::Idle;
+    if (spawnHint_) {
+        if (!active) {
+            spawnHint_->setText(QStringLiteral("Tab — режим добавления, Esc — выход"));
+        } else if (spawnStep_ == SpawnStep::Origin) {
+            spawnHint_->setText(QStringLiteral("Откуда: W/S этаж, Enter — куда"));
+        } else {
+            spawnHint_->setText(QStringLiteral("Куда: W/S этаж, Enter — создать"));
+        }
+    }
+    if (buildingView_) {
+        buildingView_->setSpawnPreview(active, originSpin_->value(), destSpin_->value(),
+                                       spawnStep_ != SpawnStep::Destination);
+    }
+}
+
+int MainWindow::floorCount() const
+{
+    return std::max(1, simulation_.config().floorCount);
 }

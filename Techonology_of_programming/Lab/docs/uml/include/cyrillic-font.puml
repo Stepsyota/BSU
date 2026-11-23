@@ -1,0 +1,4 @@
+' Подключать в начале: !include include/cyrillic-font.puml
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 13
+skinparam shadowing false

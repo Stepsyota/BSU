@@ -1,0 +1,90 @@
+@startuml use-case-elevators
+!include include/cyrillic-font.puml
+' Один файл: минимум линий от акторов (главный приём против «паутины» в PlantUML)
+left to right direction
+skinparam linetype polyline
+skinparam nodesep 50
+skinparam ranksep 45
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor #333333
+}
+
+actor "Оператор" as OP
+rectangle "Приложение имитации автоматизированной\nсистемы контроля лифтов" as SYS {
+  package "Конфигурация" {
+    usecase "Настроить параметры\nздания и лифтов" as UC_CFG
+    usecase "Импорт конфигурации" as UC_CFG_IN
+    usecase "Экспорт конфигурации" as UC_CFG_OUT
+  }
+
+  package "Сеанс симуляции" {
+    usecase "Управлять сеансом\nсимуляции" as UC_SESSION
+    usecase "Управлять ходом\n(пауза, скорость)" as UC_CTL
+    usecase "Управлять пожарной\nтревогой" as UC_FIRE
+    usecase "Остановить\nсимуляцию" as UC_STOP
+    usecase "Запустить\nсимуляцию" as UC_START
+    usecase "Выбрать стратегию" as UC_STRATEGY
+    UC_CTL -[hidden]down- UC_FIRE
+    UC_FIRE -[hidden]down- UC_STOP
+    UC_STOP -[hidden]down- UC_START
+    UC_START -[hidden]right- UC_STRATEGY
+  }
+
+  package "Пассажиры" {
+    usecase "Создать пассажира\nи сценарии" as UC_PPL
+    usecase "Просмотреть статус" as UC_STATUS
+    usecase "Импорт сценария" as UC_SCEN_IN
+    usecase "Экспорт сценария" as UC_SCEN_OUT
+  }
+
+  package "Отчёт" {
+    usecase "Статистика сеанса" as UC_STATS
+    usecase "Экспорт отчёта" as UC_REPORT
+  }
+
+  package "Пассажир в здании" {
+    usecase "Поездка на лифте" as UC_RIDE
+    usecase "Вызов с пульта этажа" as UC_CALL
+    usecase "Кнопка «Ход»" as UC_GO
+    usecase "Эвакуация" as UC_EVAC
+  }
+}
+actor "Пассажир" as PAX
+
+' === только 5 линий слева и 2 справа ===
+OP --> UC_CFG
+OP --> UC_SESSION
+OP --> UC_PPL
+OP --> UC_STATUS
+OP --> UC_STATS
+
+PAX --> UC_RIDE
+PAX --> UC_EVAC
+
+UC_CFG ..> UC_CFG_IN : <<include>>
+UC_CFG ..> UC_CFG_OUT : <<include>>
+
+UC_SESSION ..> UC_CTL : <<include>>
+UC_SESSION ..> UC_FIRE : <<include>>
+UC_SESSION ..> UC_STOP : <<include>>
+UC_SESSION ..> UC_START : <<include>>
+
+UC_START ..> UC_STRATEGY : <<include>>
+UC_STOP ..> UC_START : <<extend>>\n[лифты пусты]
+
+UC_PPL ..> UC_SCEN_IN : <<include>>
+UC_PPL ..> UC_SCEN_OUT : <<include>>
+UC_STATS ..> UC_REPORT : <<include>>
+
+UC_RIDE ..> UC_CALL : <<include>>
+UC_RIDE ..> UC_GO : <<include>>
+UC_EVAC ..> UC_RIDE : <<extend>>\n[пожар]
+
+note bottom of UC_SESSION
+  Детали: старт, стоп, пауза,
+  скорость, пожарная тревога (ТЗ лаб. 8)
+end note
+
+@enduml

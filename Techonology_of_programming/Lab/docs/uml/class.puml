@@ -1,0 +1,215 @@
+@startuml class-elevators
+!include include/cyrillic-font.puml
+title Диаграмма классов — имитация АСУ лифтов
+
+left to right direction
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam nodesep 40
+skinparam ranksep 50
+
+package "Домен" {
+  enum Direction {
+    Idle
+    Up
+    Down
+  }
+
+  enum PersonStatus {
+    Created
+    Waiting
+    Moving
+    Delivered
+    Evacuating
+  }
+
+  enum ElevatorState {
+    Idle
+    Moving
+    DoorsOpen
+    FireRecall
+  }
+
+  enum SessionState {
+    Stopped
+    Running
+    Paused
+  }
+
+  class HallCall {
+    + personId: int
+    + originFloor: int
+    + destinationFloor: int
+    + assignedElevatorId: int
+  }
+
+  class ElevatorSpec {
+    + id: int
+    + capacity: int
+    + maxSpeed: double
+    + maxAcceleration: double
+  }
+
+  class BuildingConfig {
+    + floorCount: int
+    + floorHeight: double
+    + elevators: ElevatorSpec[*]
+    + isValid(): bool
+    + {static} defaults(): BuildingConfig
+  }
+
+  class FloorPanel {
+    - floor_: int
+    + press(destination, personId): HallCall
+  }
+
+  class Person {
+    - id_: int
+    - originFloor_: int
+    - destinationFloor_: int
+    - status_: PersonStatus
+    - assignedElevatorId_: int
+    - waitSeconds_: double
+    - phaseSeconds_: double
+    + setDestination(floor)
+    + startWaiting()
+    + board(elevatorId)
+    + arrive()
+    + evacuate()
+    + tick(dt)
+    + statusText(): string
+  }
+
+  class Elevator {
+    - spec_: ElevatorSpec
+    - positionM_: double
+    - velocity_: double
+    - direction_: Direction
+    - state_: ElevatorState
+    - passengerIds_: int[*]
+    - stops_: int[*]
+    - tripCount_: int
+    - idleTripCount_: int
+    + addStop(floor)
+    + board(personId)
+    + alight(personId)
+    + pressGo()
+    + beginFireRecall()
+    + tick(dt)
+    + stats(): ElevatorStats
+  }
+
+  interface IDispatchStrategy {
+    + name(): string
+    + assign(call, elevators, floorHeight): int
+  }
+
+  class MinWaitStrategy
+  class MinIdleStrategy
+
+  class ScenarioEvent {
+    + timeSeconds: double
+    + type: SpawnPeople / FireOn / FireOff
+    + count: int
+    + fromFloor: int
+    + toFloor: int
+  }
+
+  class Scenario {
+    - events_: ScenarioEvent[*]
+    + dueEvents(now): ScenarioEvent[*]
+  }
+
+  class ElevatorStats {
+    + trips: int
+    + idleTripPercent: double
+    + transported: int
+  }
+
+  class SessionStats {
+    + perElevator: ElevatorStats[*]
+    + totalTrips: int
+    + totalTransported: int
+    + avgWait: double
+    + maxWait: double
+    + sumWait: double
+    + fireCount: int
+    + fireDuration: double
+  }
+
+  class Simulation {
+    - config_: BuildingConfig
+    - elevators_: Elevator[*]
+    - people_: Person[*]
+    - pendingCalls_: HallCall[*]
+    - strategy_: IDispatchStrategy
+    - scenario_: Scenario
+    - state_: SessionState
+    - fireAlarm_: bool
+    + configure(config): bool
+    + start() / pause() / resume()
+    + tryStop(): bool
+    + setSpeedFactor(factor)
+    + setFireAlarm(on)
+    + spawnPerson(origin, dest): int
+    + submitDestination(personId, dest): bool
+    + tick(realDt)
+    + snapshot(): SessionSnapshot
+    + collectStats(): SessionStats
+  }
+}
+
+package "IO" {
+  class JsonStore <<utility>> {
+    + {static} loadConfig(path): BuildingConfig
+    + {static} saveConfig(path, config)
+    + {static} loadScenario(path): Scenario
+    + {static} saveScenario(path, scenario)
+    + {static} saveReport(path, stats)
+  }
+}
+
+package "Qt UI" {
+  class MainWindow {
+    - simulation_: Simulation
+    - elevatorTable_: QTableWidget
+    - peopleTable_: QTableWidget
+    + start / pause / stop
+    + spawnPerson
+    + refresh()
+  }
+
+  class ConfigDialog {
+    + config(): BuildingConfig
+  }
+
+  class StatsDialog {
+    + stats(): SessionStats
+  }
+}
+
+BuildingConfig o-- ElevatorSpec
+Simulation o-- BuildingConfig
+Simulation o-- Elevator
+Simulation o-- Person
+Simulation o-- FloorPanel
+Simulation o-- HallCall
+Simulation o-- Scenario
+Simulation o-- IDispatchStrategy
+IDispatchStrategy <|-- MinWaitStrategy
+IDispatchStrategy <|-- MinIdleStrategy
+Scenario o-- ScenarioEvent
+FloorPanel ..> HallCall : press
+Person --> PersonStatus
+Elevator --> ElevatorState
+Elevator --> Direction
+Simulation --> SessionState
+MainWindow o-- Simulation
+MainWindow ..> ConfigDialog
+MainWindow ..> StatsDialog
+MainWindow ..> JsonStore
+JsonStore ..> BuildingConfig
+JsonStore ..> Scenario
+JsonStore ..> SessionStats
+
+@enduml

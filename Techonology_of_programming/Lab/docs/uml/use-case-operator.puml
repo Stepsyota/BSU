@@ -1,0 +1,60 @@
+@startuml use-case-elevators-operator
+!include include/cyrillic-font.puml
+' Рисунок 1а для отчёта — только оператор, рендер заметно ровнее
+left to right direction
+skinparam linetype polyline
+skinparam nodesep 55
+skinparam ranksep 50
+
+actor "Оператор" as OP
+
+rectangle "Приложение имитации АСУ лифтов" as SYS {
+
+  package "Конфигурация" {
+    usecase "Настроить здание и лифты" as UC_CFG
+    (Импорт конфигурации) as UC_CFG_IN
+    (Экспорт конфигурации) as UC_CFG_OUT
+    UC_CFG ..> UC_CFG_IN : <<include>>
+    UC_CFG ..> UC_CFG_OUT : <<include>>
+  }
+
+  package "Сеанс симуляции" {
+    usecase "Запустить симуляцию" as UC_START
+    usecase "Выбрать стратегию" as UC_STRAT
+    usecase "Управлять ходом\n(пауза, скорость)" as UC_CTL
+    usecase "Управлять пожарной тревогой" as UC_FIRE
+    usecase "Остановить симуляцию" as UC_STOP
+    UC_START -[hidden]down- UC_CTL
+    UC_CTL -[hidden]down- UC_FIRE
+    UC_FIRE -[hidden]down- UC_STOP
+    UC_START -[hidden]right- UC_STRAT
+    UC_START ..> UC_STRAT : <<include>>
+    UC_STOP ..> UC_START : <<extend>>\n[все лифты пусты]
+  }
+
+  package "Пассажиры и сценарии" {
+    usecase "Создать пассажира" as UC_PPL
+    usecase "Правила / сценарий генерации" as UC_GEN
+    (Импорт сценария) as UC_SIN
+    (Экспорт сценария) as UC_SOUT
+    UC_PPL ..> UC_GEN : <<include>>
+    UC_GEN ..> UC_SIN : <<include>>
+    UC_GEN ..> UC_SOUT : <<include>>
+  }
+
+  package "Отчётность" {
+    usecase "Просмотреть статистику" as UC_ST
+    (Экспорт отчёта) as UC_REP
+    UC_ST ..> UC_REP : <<include>>
+  }
+}
+
+OP --> UC_CFG
+OP --> UC_START
+OP --> UC_CTL
+OP --> UC_FIRE
+OP --> UC_STOP
+OP --> UC_PPL
+OP --> UC_ST
+
+@enduml

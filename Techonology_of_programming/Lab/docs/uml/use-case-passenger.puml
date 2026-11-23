@@ -1,0 +1,31 @@
+@startuml use-case-elevators-passenger
+!include include/cyrillic-font.puml
+' Рисунок 1б — пассажир (мало связей = без дуг)
+left to right direction
+skinparam linetype polyline
+
+actor "Пассажир" as PAX
+
+rectangle "Приложение имитации АСУ лифтов" as SYS {
+  package "Модель здания" {
+    usecase "Поездка на лифте" as UC_RIDE
+    usecase "Зарегистрировать вызов\nна пульте этажа" as UC_CALL
+    usecase "Нажать «Ход» в кабине" as UC_GO
+    usecase "Эвакуироваться\nпри пожарной тревоге" as UC_EVAC
+    UC_RIDE -[hidden]down- UC_CALL
+    UC_CALL -[hidden]down- UC_GO
+    UC_RIDE ..> UC_CALL : <<include>>
+    UC_RIDE ..> UC_GO : <<include>>
+    UC_EVAC ..> UC_RIDE : <<extend>>
+  }
+}
+
+PAX --> UC_RIDE
+PAX --> UC_EVAC
+
+note right of UC_CALL
+  Этаж назначения — не позднее
+  3 с после появления в системе
+end note
+
+@enduml
